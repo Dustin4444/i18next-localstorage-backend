@@ -1,3 +1,10 @@
+### 4.3.2
+
+- fix: a corrupted cache entry no longer breaks translation loading. `JSON.parse` on the stored value was unguarded, so any malformed value under an `i18next_res_*` key (a truncated write when the storage quota is hit, a hand-edited entry, anything else writing to that key) threw straight out of `read()`. Malformed and non-object values (`null`, numbers, strings) are now treated as a cache miss, and the entry is overwritten by the next successful load.
+- fix: `save()` no longer mutates the object it is given. With `i18next-chained-backend` the same object reference is already live in i18next's `resourceStore` when `save()` runs, so the `i18nStamp` / `i18nVersion` bookkeeping fields leaked in as translation keys.
+- fix: `getVersion()` looks up `options.versions` with an own-property check. A language named `__proto__`, `constructor` or `toString` previously inherited a truthy value from `Object.prototype`, which silently defeated the version check and made every read a cache miss.
+- chore: added unit tests, run via Node's built-in test runner (`node --test`), no new dependencies.
+
 ### 4.3.1
 
 - add getVersion type [57](https://github.com/i18next/i18next-localstorage-backend/pull/57)

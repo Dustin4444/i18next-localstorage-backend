@@ -130,7 +130,18 @@
         }
         var local = this.storage.getItem("".concat(this.options.prefix).concat(language, "-").concat(namespace));
         if (local) {
-          local = JSON.parse(local);
+          try {
+            local = JSON.parse(local);
+          } catch (e) {
+            // A corrupted or foreign value under our key must not take the whole
+            // translation load down with it. Treat it as a cache miss; the next
+            // successful load overwrites the entry via save().
+            local = null;
+          }
+        }
+
+        // JSON.parse can legitimately yield null or a primitive ('null', '5', '"x"')
+        if (local && _typeof(local) === 'object') {
           var version = this.getVersion(language, namespace);
           if (
           // expiration field is mandatory, and should not be expired
@@ -149,23 +160,36 @@
       key: "save",
       value: function save(language, namespace, data) {
         if (this.storage.store) {
-          data.i18nStamp = Date.now();
+          // Copy rather than mutate: with i18next-chained-backend the very same
+          // object is already live in i18next's resourceStore by the time save()
+          // runs, so i18nStamp / i18nVersion would show up as translation keys.
+          var payload = _objectSpread(_objectSpread({}, data), {}, {
+            i18nStamp: Date.now()
+          });
 
           // language version (if set)
           var version = this.getVersion(language, namespace);
           if (version) {
-            data.i18nVersion = version;
+            payload.i18nVersion = version;
           }
 
           // save
-          this.storage.setItem("".concat(this.options.prefix).concat(language, "-").concat(namespace), JSON.stringify(data));
+          this.storage.setItem("".concat(this.options.prefix).concat(language, "-").concat(namespace), JSON.stringify(payload));
         }
       }
     }, {
       key: "getVersion",
       value: function getVersion(language, namespace) {
-        var _this$options$getVers, _this$options;
-        return ((_this$options$getVers = (_this$options = this.options).getVersion) === null || _this$options$getVers === void 0 ? void 0 : _this$options$getVers.call(_this$options, language, namespace)) || this.options.versions[language] || this.options.defaultVersion;
+        var _getVersion;
+        var _this$options = this.options,
+          getVersion = _this$options.getVersion,
+          versions = _this$options.versions,
+          defaultVersion = _this$options.defaultVersion;
+        // own-property lookup only: a language such as `__proto__` or `toString`
+        // would otherwise inherit a truthy value from Object.prototype and
+        // silently defeat the version check on every read
+        var version = Object.prototype.hasOwnProperty.call(versions, language) ? versions[language] : undefined;
+        return ((_getVersion = getVersion) === null || _getVersion === void 0 ? void 0 : _getVersion(language, namespace)) || version || defaultVersion;
       }
     }]);
   }();

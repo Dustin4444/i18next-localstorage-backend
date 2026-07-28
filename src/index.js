@@ -68,7 +68,18 @@ class Cache {
     let local = this.storage.getItem(`${this.options.prefix}${language}-${namespace}`)
 
     if (local) {
-      local = JSON.parse(local)
+      try {
+        local = JSON.parse(local)
+      } catch (e) {
+        // A corrupted or foreign value under our key must not take the whole
+        // translation load down with it. Treat it as a cache miss; the next
+        // successful load overwrites the entry via save().
+        local = null
+      }
+    }
+
+    // JSON.parse can legitimately yield null or a primitive ('null', '5', '"x"')
+    if (local && typeof local === 'object') {
       const version = this.getVersion(language, namespace)
       if (
         // expiration field is mandatory, and should not be expired
@@ -89,21 +100,29 @@ class Cache {
 
   save (language, namespace, data) {
     if (this.storage.store) {
-      data.i18nStamp = Date.now()
+      // Copy rather than mutate: with i18next-chained-backend the very same
+      // object is already live in i18next's resourceStore by the time save()
+      // runs, so i18nStamp / i18nVersion would show up as translation keys.
+      const payload = { ...data, i18nStamp: Date.now() }
 
       // language version (if set)
       const version = this.getVersion(language, namespace)
       if (version) {
-        data.i18nVersion = version
+        payload.i18nVersion = version
       }
 
       // save
-      this.storage.setItem(`${this.options.prefix}${language}-${namespace}`, JSON.stringify(data))
+      this.storage.setItem(`${this.options.prefix}${language}-${namespace}`, JSON.stringify(payload))
     }
   }
 
   getVersion (language, namespace) {
-    return this.options.getVersion?.(language, namespace) || this.options.versions[language] || this.options.defaultVersion
+    const { getVersion, versions, defaultVersion } = this.options
+    // own-property lookup only: a language such as `__proto__` or `toString`
+    // would otherwise inherit a truthy value from Object.prototype and
+    // silently defeat the version check on every read
+    const version = Object.prototype.hasOwnProperty.call(versions, language) ? versions[language] : undefined
+    return getVersion?.(language, namespace) || version || defaultVersion
   }
 }
 

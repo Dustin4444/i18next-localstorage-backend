@@ -44,7 +44,7 @@
   "scripts": {
     "lint": "eslint ./src/*",
     "pretest": "npm run test:typescript",
-    "test": "npm run lint",
+    "test": "npm run lint && node --test test/*.test.mjs",
     "test:typescript": "tsd",
     "build": "rimraf dist && rollup -c && cpy \"./dist/umd/*.js\" ./",
     "preversion": "npm run build && git push",
